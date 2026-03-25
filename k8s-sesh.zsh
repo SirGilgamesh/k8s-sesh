@@ -78,6 +78,16 @@ fi
 
 KUBE_ALIAS_FILE="$HOME/.k8s-sesh/cluster-aliases"
 
+# Warn if global current-context is set outside a session
+if [ -z "$__K_SESSION" ]; then
+  _k_global_ctx=$(KUBECONFIG="$HOME/.kube/config" kubectl config current-context 2>/dev/null)
+  if [ -n "$_k_global_ctx" ]; then
+    echo "Warning: Global kubectl context is set to '$_k_global_ctx'." >&2
+    echo "Run 'ks clear' to clear it, or 'ks <env>' to start a scoped session." >&2
+  fi
+  unset _k_global_ctx
+fi
+
 # Prints available environments from the config file
 _k_list() {
   echo "Available environments:"
@@ -331,6 +341,9 @@ ks() {
       echo "  ks rm <alias>        Remove a cluster alias"
       echo "  ks sync              Interactively register unregistered kubectl contexts"
       echo ""
+      echo "Safety:"
+      echo "  ks clear             Clear global kubectl context"
+      echo ""
       echo "Info:"
       echo "  ks                   List available environments"
       echo "  ks help              Show this help"
@@ -342,6 +355,7 @@ ks() {
     add)   shift; _k_add "$@"; return $? ;;
     rm)    shift; _k_rm "$@"; return $? ;;
     sync)  _k_sync; return $? ;;
+    clear) KUBECONFIG="$HOME/.kube/config" kubectl config unset current-context >/dev/null && echo "Global context cleared." ; return $? ;;
     n)     shift; _k_ns "$@"; return $? ;;
     info)  _k_info; return $? ;;
   esac
@@ -367,5 +381,6 @@ ks() {
   fi
 }
 
+# Kubectl alias
 # Kubectl alias
 alias k=kubectl
