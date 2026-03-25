@@ -27,16 +27,19 @@ cd ~/.k8s-sesh && git pull
 
 ```bash
 # Register your existing kubectl contexts
-k sync
+ks sync
 
 # Spawn an isolated session
-k dev
+ks dev
 
 # You're now in an isolated subshell
-# Your prompt shows: (ctx:dev | ns:default) | aws:dev-profile | us-east-1)
+# Your prompt shows: (ctx:dev | ns:default) | aws:dev-profile | us-east-1
 
 # Switch namespace
-k n kube-system
+ks n kube-system
+
+# Use kubectl via the k alias
+k get pods
 
 # Exit the session (cleanup is automatic)
 exit
@@ -61,36 +64,41 @@ local=docker-desktop
 
 | Command | Description |
 |---------|-------------|
-| `k <env>` | Spawn isolated shell for a cluster |
-| `k <kubectl args>` | Pass through to kubectl (e.g., `k get pods`) |
-| `k n <namespace>` | Switch namespace in current session |
-| `k n -` | Return to previous namespace |
-| `k info` | Show current context and namespace |
+| `ks <env>` | Spawn isolated shell for a cluster |
+| `ks n <namespace>` | Switch namespace in current session |
+| `ks n -` | Return to previous namespace |
+| `ks info` | Show current context and namespace |
 
 ### Alias Management
 
 | Command | Description |
 |---------|-------------|
-| `k add <alias> <context> [profile]` | Add a cluster alias |
-| `k rm <alias>` | Remove a cluster alias |
-| `k sync` | Interactively register unregistered kubectl contexts |
+| `ks add <alias> <context> [profile]` | Add a cluster alias |
+| `ks rm <alias>` | Remove a cluster alias |
+| `ks sync` | Interactively register unregistered kubectl contexts |
 
 ### Info
 
 | Command | Description |
 |---------|-------------|
-| `k` | List available environments |
-| `k help` | Show all commands |
+| `ks` | List available environments |
+| `ks help` | Show all commands |
+
+### Kubectl
+
+| Command | Description |
+|---------|-------------|
+| `k <args>` | Alias for kubectl (e.g., `k get pods`) |
 
 ## How It Works
 
-1. `k <env>` looks up the alias in the config file
+1. `ks <env>` looks up the alias in the config file
 2. Extracts the context into a temp kubeconfig via `kubectl config view --raw --minify`
 3. Spawns a new zsh subshell with `KUBECONFIG` pointing to the temp file
 4. Sets `AWS_PROFILE` and `AWS_DEFAULT_REGION` if configured
 5. On `exit`, a trap cleans up the temp kubeconfig
 
-The parent shell remains untouched — you can have multiple isolated sessions running simultaneously.
+The parent shell remains untouched. Switching sessions (`ks <other-env>`) automatically exits the current session and starts a new one.
 
 ## License
 

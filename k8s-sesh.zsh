@@ -7,7 +7,7 @@
 # cross-cluster operations. No external dependencies beyond kubectl and zsh.
 #
 # How it works:
-#   1. `k <env>` looks up the alias in ~/.k8s-sesh/cluster-aliases
+#   1. `ks <env>` looks up the alias in ~/.k8s-sesh/cluster-aliases
 #   2. Extracts that context into a temp kubeconfig via `kubectl config view --raw --minify`
 #   3. Exports __K_AWS_PROFILE, __K_AWS_REGION, and __K_KUBECONFIG as temp env vars
 #   4. Spawns a new zsh subshell. The new zsh sources ~/.zshrc, which sources this file.
@@ -22,19 +22,21 @@
 #
 # Commands:
 #   Sessions:
-#     k <env>              Spawn isolated shell for a cluster
-#     k <kubectl args>     Pass through to kubectl (e.g. k get pods)
-#     k n <namespace>      Switch namespace in current session
-#     k info               Show current context and namespace
+#     ks <env>             Spawn isolated shell for a cluster
+#     ks n <namespace>     Switch namespace in current session
+#     ks info              Show current context and namespace
 #
 #   Alias management:
-#     k add <a> <c> [p]    Add alias (a=alias, c=context, p=optional AWS profile)
-#     k rm <alias>         Remove a cluster alias
-#     k sync               Interactively register unregistered kubectl contexts
+#     ks add <a> <c> [p]   Add alias (a=alias, c=context, p=optional AWS profile)
+#     ks rm <alias>        Remove a cluster alias
+#     ks sync              Interactively register unregistered kubectl contexts
 #
 #   Info:
-#     k                    List available environments
-#     k help               Show all commands
+#     ks                   List available environments
+#     ks help              Show all commands
+#
+#   Kubectl:
+#     k                    Alias for kubectl (e.g. k get pods)
 # ==============================================================================
 
 # Step 4: When the subshell starts, zsh sources this file. If __K_KUBECONFIG is set
@@ -142,16 +144,16 @@ _k_session() {
 # Add a new cluster alias to the config file
 _k_add() {
   if [ -z "$1" ] || [ -z "$2" ]; then
-    echo "Usage: k add <alias> <context> [aws-profile]"
+    echo "Usage: ks add <alias> <context> [aws-profile]"
     echo ""
     echo "Examples:"
-    echo "  k add prod user@ctx.eksctl.io                    # decoupled (no AWS profile)"
-    echo "  k add prod user@ctx.eksctl.io production    # coupled (sets AWS_PROFILE)"
+    echo "  ks add prod user@ctx.eksctl.io                 # decoupled (no AWS profile)"
+    echo "  ks add prod user@ctx.eksctl.io production      # coupled (sets AWS_PROFILE)"
     return 1
   fi
   mkdir -p "$(dirname "$KUBE_ALIAS_FILE")"
   if grep -q "^${1}=" "$KUBE_ALIAS_FILE" 2>/dev/null; then
-    echo "Alias '$1' already exists. Remove it first with 'k rm $1'."
+    echo "Alias '$1' already exists. Remove it first with 'ks rm $1'."
     return 1
   fi
   local value="$2"
@@ -165,7 +167,7 @@ _k_add() {
 # Remove a cluster alias from the config file
 _k_rm() {
   if [ -z "$1" ]; then
-    echo "Usage: k rm <alias>"
+    echo "Usage: ks rm <alias>"
     return 1
   fi
   if ! grep -q "^${1}=" "$KUBE_ALIAS_FILE" 2>/dev/null; then
@@ -261,11 +263,11 @@ _k_sync() {
 }
 
 # Switch namespace in the current isolated session
-# Use `k n -` to return to the previous namespace
+# Use `ks n -` to return to the previous namespace
 _k_ns() {
   if [ -z "$1" ]; then
-    echo "Usage: k n <namespace>"
-    echo "         k n -    (return to previous namespace)"
+    echo "Usage: ks n <namespace>"
+    echo "         ks n -   (return to previous namespace)"
     return 1
   fi
   local current
@@ -295,27 +297,29 @@ _k_info() {
   echo "Namespace: ${ns:-default}"
 }
 
-# Main entry point: routes subcommands or falls through to kubectl
-k() {
+# Main entry point for session management
+ks() {
   case "$1" in
     help)
       echo "K8s-Sesh"
       echo ""
       echo "Sessions:"
-      echo "  k <env>              Spawn isolated shell for a cluster"
-      echo "  k <kubectl args>     Pass through to kubectl (e.g. k get pods)"
-      echo "  k n <namespace>      Switch namespace in current session"
-      echo "  k n -                Return to previous namespace"
-      echo "  k info               Show current context and namespace"
+      echo "  ks <env>             Spawn isolated shell for a cluster"
+      echo "  ks n <namespace>     Switch namespace in current session"
+      echo "  ks n -               Return to previous namespace"
+      echo "  ks info              Show current context and namespace"
       echo ""
       echo "Alias management:"
-      echo "  k add <a> <c> [p]    Add alias (a=alias, c=context, p=optional AWS profile)"
-      echo "  k rm <alias>         Remove a cluster alias"
-      echo "  k sync               Interactively register unregistered kubectl contexts"
+      echo "  ks add <a> <c> [p]   Add alias (a=alias, c=context, p=optional AWS profile)"
+      echo "  ks rm <alias>        Remove a cluster alias"
+      echo "  ks sync              Interactively register unregistered kubectl contexts"
       echo ""
       echo "Info:"
-      echo "  k                    List available environments"
-      echo "  k help               Show this help"
+      echo "  ks                   List available environments"
+      echo "  ks help              Show this help"
+      echo ""
+      echo "Kubectl:"
+      echo "  k <args>             Alias for kubectl"
       return 0
       ;;
     add)   shift; _k_add "$@"; return $? ;;
@@ -326,21 +330,25 @@ k() {
   esac
 
   if [ ! -f "$KUBE_ALIAS_FILE" ] || [ ! -s "$KUBE_ALIAS_FILE" ]; then
-    echo "No cluster aliases configured. Run 'k sync' to register your kubectl contexts."
+    echo "No cluster aliases configured. Run 'ks sync' to register your kubectl contexts."
     return 1
   fi
   if [ -z "$1" ]; then
-    echo "Usage: k <environment | kubectl args>"
+    echo "Usage: ks <environment>"
     echo ""
     _k_list
     echo ""
-    echo "Run 'k sync' to register new contexts or 'k help' for all commands."
+    echo "Run 'ks sync' to register new contexts or 'ks help' for all commands."
     return 0
   fi
 
-  # Check if first arg matches a cluster alias
-  _k_session "$1" && return 0
-
-  # No match — pass through to kubectl
-  kubectl "$@"
+  # Spawn session for the given alias
+  if ! _k_session "$1"; then
+    echo "Unknown environment: $1"
+    echo "Run 'ks' to list available environments."
+    return 1
+  fi
 }
+
+# Kubectl alias
+alias k=kubectl
