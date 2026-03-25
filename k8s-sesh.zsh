@@ -182,6 +182,23 @@ _k_rm() {
 _k_sync() {
   mkdir -p "$(dirname "$KUBE_ALIAS_FILE")"
   touch "$KUBE_ALIAS_FILE"
+
+  # Offer to clear global current-context for safety
+  local current_ctx
+  current_ctx=$(KUBECONFIG="$HOME/.kube/config" kubectl config current-context 2>/dev/null)
+  if [ -n "$current_ctx" ]; then
+    echo "Current global context: $current_ctx"
+    echo ""
+    echo "Clear current-context from ~/.kube/config?"
+    printf "This makes 'kubectl' fail unless you're in a 'ks' session. [y/N] "
+    read -r clear_ctx </dev/tty
+    if [[ "$clear_ctx" =~ ^[Yy]$ ]]; then
+      KUBECONFIG="$HOME/.kube/config" kubectl config unset current-context >/dev/null
+      echo "Global context cleared. Use 'ks <env>' to start a session."
+    fi
+    echo ""
+  fi
+
   local contexts
   contexts=$(KUBECONFIG="$HOME/.kube/config" kubectl config get-contexts -o name 2>/dev/null)
   if [ -z "$contexts" ]; then
