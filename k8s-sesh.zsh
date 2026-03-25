@@ -120,7 +120,7 @@ _k_session() {
     return 1
   fi
 
-  # Export temp vars for the subshell to pick up, then spawn zsh
+  # Export temp vars for the subshell to pick up
   export __K_KUBECONFIG="$tmpkubeconfig"
   export __K_ENV="$env"
 
@@ -128,8 +128,15 @@ _k_session() {
   [ "$profile" != "$entry" ] && info="$info [AWS_PROFILE=$profile]" && export __K_AWS_PROFILE="$profile"
   [ -n "$region" ] && info="$info [region=$region]" && export __K_AWS_REGION="$region"
   echo "$info"
-  zsh
-  unset __K_KUBECONFIG __K_AWS_PROFILE __K_AWS_REGION __K_ENV
+
+  # If already in a session, clean up current and replace shell
+  if [ -n "$__K_SESSION" ]; then
+    rm -f "$KUBECONFIG"
+    exec zsh
+  else
+    zsh
+    unset __K_KUBECONFIG __K_AWS_PROFILE __K_AWS_REGION __K_ENV
+  fi
 }
 
 # Add a new cluster alias to the config file
