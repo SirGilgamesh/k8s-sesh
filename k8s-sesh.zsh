@@ -9,11 +9,12 @@
 # How it works:
 #   1. `ks <env>` looks up the alias in ~/.k8s-sesh/cluster-aliases
 #   2. Extracts that context into a temp kubeconfig via `kubectl config view --raw --minify`
-#   3. Exports __K_AWS_PROFILE, __K_AWS_REGION, and __K_KUBECONFIG as temp env vars
-#   4. Spawns a new zsh subshell. The new zsh sources ~/.zshrc, which sources this file.
+#   3. Extracts AWS region from EKS server URL (e.g., xxx.us-east-1.eks.amazonaws.com)
+#   4. Exports __K_AWS_PROFILE, __K_AWS_REGION, and __K_KUBECONFIG as temp env vars
+#   5. Spawns a new zsh subshell. The new zsh sources ~/.zshrc, which sources this file.
 #      The block below detects the temp vars and sets KUBECONFIG, AWS_PROFILE,
 #      AWS_DEFAULT_REGION, and the prompt
-#   5. On `exit`, a trap cleans up the temp kubeconfig and the parent shell is untouched
+#   6. On `exit`, a trap cleans up the temp kubeconfig and the parent shell is untouched
 #
 # Config file: ~/.k8s-sesh/cluster-aliases
 #   Format: alias=context|aws-profile  (coupled, sets AWS_PROFILE)
@@ -101,15 +102,6 @@ _k_session() {
   fi
   local ctx="${entry%%|*}"
   local profile="${entry#*|}"
-  local region=""
-
-  # Extract region from context name
-  # Supports: eksctl format (*.region.eksctl.io) and ARN format (arn:aws:eks:region:...)
-  if [[ "$ctx" =~ \.([a-z]+-[a-z]+-[0-9]+)\.eksctl\.io ]]; then
-    region="${match[1]}"
-  elif [[ "$ctx" =~ eks:([a-z]+-[a-z]+-[0-9]+): ]]; then
-    region="${match[1]}"
-  fi
 
   # Extract context into a temp kubeconfig
   # Always read from the global kubeconfig so nested sessions work
@@ -120,6 +112,14 @@ _k_session() {
     echo "Failed to extract context: $ctx"
     rm -f "$tmpkubeconfig"
     return 1
+  fi
+
+  # Extract region from EKS server URL (e.g., https://xxx.us-east-1.eks.amazonaws.com)
+  local region=""
+  local server
+  server=$(KUBECONFIG="$tmpkubeconfig" kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}' 2>/dev/null)
+  if [[ "$server" =~ \.([a-z]+-[a-z]+-[0-9]+)\.eks\.amazonaws\.com ]]; then
+    region="${match[1]}"
   fi
 
   # Export temp vars for the subshell to pick up
